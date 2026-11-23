@@ -21,6 +21,7 @@ export interface SpotifyPlayer {
   resume(): Promise<void>;
   seek(positionMs: number): Promise<void>;
   activateElement(): Promise<void>;
+  setVolume(volume: number): Promise<void>;
 }
 
 interface SpotifyNamespace {

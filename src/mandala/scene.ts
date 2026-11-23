@@ -12,7 +12,27 @@ export type Prim =
   | { type: 'path'; pts: Float64Array; closed: boolean; color: string; width: number; alpha: number; additive: boolean; dash?: number[] }
   | { type: 'circle'; cx: number; cy: number; r: number; color: string; width: number; alpha: number; dash?: number[] }
   | { type: 'dot'; cx: number; cy: number; r: number; color: string; alpha: number; additive: boolean }
-  | { type: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; alpha: number };
+  | { type: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; alpha: number }
+  | { type: 'rect'; x: number; y: number; w: number; h: number; color: string; alpha: number; radius?: number }
+  | {
+      type: 'text';
+      x: number;
+      y: number;
+      text: string;
+      color: string;
+      alpha: number;
+      size: number;
+      weight?: number;
+      font?: 'sans' | 'mono';
+      align: 'left' | 'center' | 'right';
+      baseline: 'top' | 'middle' | 'bottom';
+    };
+
+/** Font stacks shared by the canvas renderer and the SVG serializer. */
+export const FONT_STACK = {
+  sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  mono: 'ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace',
+} as const;
 
 export interface SceneOptions {
   width: number;
@@ -34,19 +54,26 @@ export interface Scene {
   prims: Prim[];
 }
 
-/** Space reserved by overlaid UI (header / transport) that the mandala should avoid. */
+/** Space reserved by overlaid UI (header, transport, side panels) that the drawing should avoid. */
 export interface Insets {
   top: number;
   bottom: number;
+  left?: number;
+  right?: number;
 }
 
-export function sceneGeometry(width: number, height: number, inset: Insets = { top: 0, bottom: 0 }) {
+export const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
+
+export function sceneGeometry(width: number, height: number, inset: Insets = NO_INSETS) {
+  const left = inset.left ?? 0;
+  const right = inset.right ?? 0;
+  const availW = Math.max(1, width - left - right);
   const availH = Math.max(1, height - inset.top - inset.bottom);
   // Fit the outermost swing plus the section tick marks inside 96% of the half-extent.
   return {
-    cx: width / 2,
+    cx: left + availW / 2,
     cy: inset.top + availH / 2,
-    scale: ((Math.min(width, availH) / 2) * 0.96) / (OUTER_LIMIT + 0.04),
+    scale: ((Math.min(availW, availH) / 2) * 0.96) / (OUTER_LIMIT + 0.04),
   };
 }
 

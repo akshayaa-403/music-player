@@ -12,7 +12,20 @@ export interface PlaybackController {
   play(): Promise<void>;
   pause(): Promise<void>;
   seek(ms: number): Promise<void>;
+  /** 0..1. Only controllers that make sound implement it. */
+  setVolume?(volume: number): Promise<void>;
+  readonly volume?: number;
   destroy(): void;
+}
+
+const VOLUME_KEY = 'hm.volume';
+function storedVolume(): number {
+  try {
+    const v = Number(localStorage.getItem(VOLUME_KEY));
+    return localStorage.getItem(VOLUME_KEY) !== null && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.8;
+  } catch {
+    return 0.8;
+  }
 }
 
 /**
@@ -25,12 +38,23 @@ export class SilentController implements PlaybackController {
   private timer = 0;
 
   constructor() {
+    this.start();
+  }
+
+  /** (Re)starts the end-of-track watcher. Safe to call repeatedly (React StrictMode re-runs effects). */
+  start() {
+    this.stop();
     // Stop at the end of the track like a real player would.
     this.timer = window.setInterval(() => {
       if (this.clock.isPlaying() && this.clock.durationMs > 0 && this.clock.nowMs() >= this.clock.durationMs) {
         this.clock.set(this.clock.durationMs, false);
       }
     }, 200);
+  }
+
+  stop() {
+    clearInterval(this.timer);
+    this.timer = 0;
   }
   async load(track: TrackMeta) {
     this.clock.durationMs = track.durationMs;
@@ -47,7 +71,7 @@ export class SilentController implements PlaybackController {
     this.clock.set(ms, this.clock.isPlaying());
   }
   destroy() {
-    clearInterval(this.timer);
+    this.stop();
   }
 }
 
@@ -68,6 +92,7 @@ export class SpotifyController implements PlaybackController {
   private startedUri: string | null = null;
   private pollTimer = 0;
   private destroyed = false;
+  volume = storedVolume();
 
   constructor(private readonly events: SpotifyControllerEvents) {
     this.deviceReady = new Promise((res, rej) => {
@@ -82,7 +107,7 @@ export class SpotifyController implements PlaybackController {
     if (this.destroyed) return;
     const player = new Spotify.Player({
       name: 'Harmonic Mandala',
-      volume: 0.8,
+      volume: this.volume,
       getOAuthToken: (cb) => {
         void getAccessToken().then((t) => t && cb(t));
       },
@@ -169,6 +194,16 @@ export class SpotifyController implements PlaybackController {
   async seek(ms: number) {
     this.clock.set(ms, this.clock.isPlaying());
     if (this.player && this.startedUri) await this.player.seek(Math.round(ms));
+  }
+
+  async setVolume(volume: number) {
+    this.volume = Math.min(1, Math.max(0, volume));
+    try {
+      localStorage.setItem(VOLUME_KEY, String(this.volume));
+    } catch {
+      /* storage unavailable: volume just won't persist */
+    }
+    await this.player?.setVolume(this.volume);
   }
 
   destroy() {

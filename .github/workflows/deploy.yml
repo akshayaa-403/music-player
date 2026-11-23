@@ -1,0 +1,74 @@
+# Builds the app and publishes it to GitHub Pages on every push to main.
+#
+# One-time setup (Settings → Pages → Source: "GitHub Actions"), plus optional
+# repository variables (Settings → Secrets and variables → Actions → Variables):
+#   VITE_SPOTIFY_CLIENT_ID          Spotify app Client ID. Not a secret (PKCE).
+#                                   Without it the site runs in demo-only mode.
+#   VITE_SPOTIFY_REDIRECT_URI       Optional override. Defaults to the site root,
+#                                   https://<user>.github.io/<repo>/
+#   VITE_DISABLE_RECCOBEATS         Optional, "true" to skip ReccoBeats lookups.
+#   VITE_DISABLE_PREVIEW_ANALYSIS   Optional, "true" to skip Apple preview analysis.
+#   BASE_PATH                       Optional override of the sub-path, e.g. "/" for
+#                                   a custom domain. Defaults to /<repo>/.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; let an in-progress deploy finish rather than cancel it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          BASE_PATH: ${{ vars.BASE_PATH || format('/{0}/', github.event.repository.name) }}
+          VITE_SPOTIFY_CLIENT_ID: ${{ vars.VITE_SPOTIFY_CLIENT_ID }}
+          VITE_SPOTIFY_REDIRECT_URI: ${{ vars.VITE_SPOTIFY_REDIRECT_URI }}
+          VITE_DISABLE_RECCOBEATS: ${{ vars.VITE_DISABLE_RECCOBEATS || 'false' }}
+          VITE_DISABLE_PREVIEW_ANALYSIS: ${{ vars.VITE_DISABLE_PREVIEW_ANALYSIS || 'false' }}
+
+      # GitHub Pages has no SPA routing. Serving the app as the 404 page means any
+      # deep path (e.g. an old /callback redirect URI) still boots the app.
+      - name: SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

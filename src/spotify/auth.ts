@@ -2,9 +2,17 @@
  * Spotify Authorization Code + PKCE. PKCE replaces the client secret with a
  * per-login verifier, so no secret is ever shipped to (or needed by) the browser.
  */
-const CLIENT_ID: string = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? '';
+const CLIENT_ID: string = (import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? '').trim();
+/** Root of the app, e.g. "/" locally or "/music-player/" on GitHub Pages. */
+const APP_BASE: string = import.meta.env.BASE_URL || '/';
+/**
+ * Where Spotify sends the user back to. Defaults to the app's own root
+ * (http://127.0.0.1:5173/ locally, https://<user>.github.io/<repo>/ on Pages),
+ * which works on static hosts without any server-side routing. Set
+ * VITE_SPOTIFY_REDIRECT_URI to override it; any path that serves the app works.
+ */
 const REDIRECT_URI = (): string =>
-  import.meta.env.VITE_SPOTIFY_REDIRECT_URI || `${window.location.origin}/callback`;
+  (import.meta.env.VITE_SPOTIFY_REDIRECT_URI ?? '').trim() || `${window.location.origin}${APP_BASE}`;
 
 const SCOPES = [
   'streaming', // Web Playback SDK
@@ -17,6 +25,7 @@ const SCOPES = [
 const TOKEN_KEY = 'hm.spotify.token';
 const VERIFIER_KEY = 'hm.spotify.verifier';
 const STATE_KEY = 'hm.spotify.state';
+const RETURN_KEY = 'hm.spotify.return';
 
 interface StoredToken {
   access_token: string;
@@ -41,12 +50,17 @@ async function challengeFor(verifier: string): Promise<string> {
     .replace(/=+$/, '');
 }
 
-export async function beginLogin(): Promise<void> {
-  if (!isAuthConfigured()) throw new Error('VITE_SPOTIFY_CLIENT_ID is not set.');
+/**
+ * Starts the Spotify login. `returnSearch` (e.g. "?track=…&view=waves") is
+ * restored to the address bar after the round-trip, so deep links survive login.
+ */
+export async function beginLogin(returnSearch = window.location.search): Promise<void> {
+  if (!isAuthConfigured()) throw new Error('Spotify login isn’t configured for this site.');
   const verifier = randomString(64);
   const state = randomString(16);
   sessionStorage.setItem(VERIFIER_KEY, verifier);
   sessionStorage.setItem(STATE_KEY, state);
+  sessionStorage.setItem(RETURN_KEY, returnSearch);
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: 'code',
@@ -57,6 +71,17 @@ export async function beginLogin(): Promise<void> {
     state,
   });
   window.location.assign(`https://accounts.spotify.com/authorize?${params}`);
+}
+
+/**
+ * During an OAuth return (the URL still has ?code or ?error), the query string
+ * the user had before logging in; null otherwise. Lets the app restore deep-link
+ * state on its very first render, before the redirect is processed.
+ */
+export function pendingLoginReturn(): string | null {
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has('code') && !q.has('error')) return null;
+  return sessionStorage.getItem(RETURN_KEY) ?? '';
 }
 
 /**
@@ -77,7 +102,12 @@ async function handleRedirect(): Promise<string | null> {
   const error = url.searchParams.get('error');
   if (!code && !error) return null;
 
-  const cleanUrl = () => window.history.replaceState({}, '', '/');
+  // Drop ?code/&state from the address bar and put back where the user was.
+  const cleanUrl = () => {
+    const back = sessionStorage.getItem(RETURN_KEY) ?? '';
+    sessionStorage.removeItem(RETURN_KEY);
+    window.history.replaceState({}, '', `${APP_BASE}${back.startsWith('?') ? back : ''}`);
+  };
   if (error) {
     cleanUrl();
     return error === 'access_denied' ? 'Spotify login was cancelled.' : `Spotify login failed: ${error}`;

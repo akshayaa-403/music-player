@@ -1,0 +1,14 @@
+{
+  "name": "Harmonic Mandala",
+  "short_name": "Mandala",
+  "description": "Turn any Spotify track into a living, rotating mandala of seven chakra wave rings — or see the same functions unrolled as waves.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05060a",
+  "theme_color": "#05060a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

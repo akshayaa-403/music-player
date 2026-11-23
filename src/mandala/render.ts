@@ -1,4 +1,4 @@
-import type { Prim } from './scene';
+import { FONT_STACK, type Prim } from './scene';
 
 /** Draws scene primitives. `background` null leaves the canvas transparent. */
 export function drawPrims(
@@ -68,6 +68,24 @@ export function drawPrims(
         ctx.beginPath();
         ctx.arc(p.cx, p.cy, p.r, 0, Math.PI * 2);
         ctx.fill();
+        break;
+      case 'rect':
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        if (p.radius && ctx.roundRect) ctx.roundRect(p.x, p.y, p.w, p.h, p.radius);
+        else ctx.rect(p.x, p.y, p.w, p.h);
+        ctx.fill();
+        break;
+      case 'text':
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.font = `${p.weight ?? 400} ${p.size}px ${FONT_STACK[p.font ?? 'sans']}`;
+        ctx.textAlign = p.align;
+        ctx.textBaseline = p.baseline;
+        ctx.fillText(p.text, p.x, p.y);
         break;
     }
   }

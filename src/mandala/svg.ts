@@ -1,5 +1,5 @@
 ﻿import { hslToHex } from './color';
-import type { Prim } from './scene';
+import { FONT_STACK, type Prim } from './scene';
 
 /** hsl()/hsla() to #rrggbb (opacity is carried separately), for editor compatibility. */
 function toHex(color: string): string {
@@ -69,6 +69,19 @@ export function primsToSvg(
           `<circle cx="${n(p.cx)}" cy="${n(p.cy)}" r="${n(p.r)}" fill="${toHex(p.color)}" fill-opacity="${n(p.alpha)}" stroke="none"${blend}/>`,
         );
         break;
+      case 'rect':
+        out.push(
+          `<rect x="${n(p.x)}" y="${n(p.y)}" width="${n(p.w)}" height="${n(p.h)}"${p.radius ? ` rx="${n(p.radius)}"` : ''} fill="${toHex(p.color)}" fill-opacity="${n(p.alpha)}" stroke="none"/>`,
+        );
+        break;
+      case 'text': {
+        const anchor = p.align === 'left' ? 'start' : p.align === 'right' ? 'end' : 'middle';
+        const base = p.baseline === 'top' ? 'text-before-edge' : p.baseline === 'bottom' ? 'text-after-edge' : 'central';
+        out.push(
+          `<text x="${n(p.x)}" y="${n(p.y)}" fill="${toHex(p.color)}" fill-opacity="${n(p.alpha)}" stroke="none" font-family="${esc(FONT_STACK[p.font ?? 'sans'])}" font-size="${n(p.size)}" font-weight="${p.weight ?? 400}" text-anchor="${anchor}" dominant-baseline="${base}">${esc(p.text)}</text>`,
+        );
+        break;
+      }
     }
   }
   out.push('</g></svg>');

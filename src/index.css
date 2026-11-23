@@ -5,8 +5,8 @@
   --color-panel: rgb(14 15 24 / 0.78);
   --color-line: rgb(255 255 255 / 0.08);
   --color-spotify: #1ed760;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
 }
 
 html,
@@ -21,7 +21,21 @@ body {
   color: rgb(229 231 240);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Keyboard focus is always visible; mouse focus stays quiet. In the base layer so utilities (outline-none) can override it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(255 255 255 / 0.85);
+    outline-offset: 2px;
+  }
+}
+
+::selection {
+  background: rgb(167 139 250 / 0.35);
 }
 
 .glass {
@@ -31,30 +45,81 @@ body {
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 
-/* Scrubber */
+/* Safe areas for notched phones (viewport-fit=cover). */
+.safe-x {
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/85 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-spotify {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-spotify px-4 py-2 text-sm font-semibold text-black transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-3.5 py-2 text-sm font-medium text-white/85 transition hover:border-white/25 hover:bg-white/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .icon-btn {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/65 transition hover:bg-white/10 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .kbd {
+    @apply inline-grid min-w-[1.6em] place-items-center rounded-md border border-white/15 bg-white/5 px-1.5 py-px font-mono text-[11px] leading-5 text-white/75;
+  }
+  .code {
+    @apply rounded bg-white/8 px-1 py-px font-mono text-[0.85em] text-white/90;
+  }
+  .section-title {
+    @apply mb-2 text-[11px] font-semibold tracking-wider text-white/40 uppercase;
+  }
+}
+
+/* Waves lane labels drop their equation line when lanes get short. */
+[data-compact='1'] .lane-eq {
+  display: none;
+}
+
+/* Native dialog backdrop. */
+.help-dialog::backdrop {
+  background: rgb(2 3 8 / 0.6);
+  backdrop-filter: blur(4px);
+}
+.help-dialog[open] {
+  animation: pop-in 180ms ease-out;
+}
+
+/* Scrubber / volume slider */
+/* A 22px-tall hit area (easy to grab on touch) with a 4px track painted through its middle. */
 input[type='range'].scrub {
   appearance: none;
-  height: 4px;
+  height: 22px;
   border-radius: 999px;
   background: linear-gradient(
-    to right,
-    rgb(255 255 255 / 0.85) 0,
-    rgb(255 255 255 / 0.85) var(--fill, 0%),
-    rgb(255 255 255 / 0.15) var(--fill, 0%)
-  );
+      to right,
+      rgb(255 255 255 / 0.85) 0,
+      rgb(255 255 255 / 0.85) var(--fill, 0%),
+      rgb(255 255 255 / 0.15) var(--fill, 0%)
+    )
+    center / 100% 4px no-repeat;
   cursor: pointer;
 }
 input[type='range'].scrub::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   background: #fff;
   box-shadow: 0 0 10px rgb(255 255 255 / 0.6);
+  transition: transform 120ms ease;
+}
+input[type='range'].scrub:hover::-webkit-slider-thumb,
+input[type='range'].scrub:active::-webkit-slider-thumb {
+  transform: scale(1.2);
 }
 input[type='range'].scrub::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border: 0;
   border-radius: 999px;
   background: #fff;
@@ -63,9 +128,86 @@ input[type='range'].scrub:disabled {
   cursor: default;
   opacity: 0.4;
 }
+input[type='range'].scrub:focus-visible {
+  outline-offset: 0;
+}
+
+/* Motion */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+.toast-in {
+  animation: pop-in 200ms ease-out;
+}
+.menu-in {
+  animation: pop-in 140ms ease-out;
+}
+.fade-in {
+  animation: fade-in 300ms ease-out;
+}
+.panel-in {
+  animation: slide-in-right 220ms ease-out;
+}
+.progress-indeterminate {
+  animation: indeterminate 1.2s ease-in-out infinite;
+}
+
+/* Chrome hides in immersive mode. */
+.chrome {
+  transition:
+    opacity 260ms ease,
+    transform 260ms ease;
+}
+.chrome-hidden .chrome {
+  opacity: 0;
+  pointer-events: none;
+}
+.chrome-hidden .chrome-top {
+  transform: translateY(-8px);
+}
+.chrome-hidden .chrome-bottom {
+  transform: translateY(8px);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
   }
 }
